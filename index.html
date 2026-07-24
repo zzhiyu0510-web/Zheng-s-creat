@@ -373,8 +373,8 @@
     // 交替方向：方块从屏幕远端滑过来，留足反应时间
     spawnDirection *= -1;
     const dir = spawnDirection;
-    // 起点固定在屏幕远端，始终用初始宽度计算距离，不随方块变窄而改变
-    const startX = dir === 1 ? -initialBlockWidth : canvasWidth;
+    // 起点：1.5 倍屏宽外，确保从远处清晰可见地滑入
+    const startX = dir === 1 ? -canvasWidth * 1.5 : canvasWidth * 1.5;
     currentBlock = {
       x: startX,
       width: blockWidth,
@@ -545,11 +545,11 @@
     // 更新移动方块
     if (currentBlock) {
       currentBlock.x += currentBlock.direction * currentBlock.speed * dt;
-      // 边界反弹
-      if (currentBlock.x <= 0) {
+      // 边界反弹：只在方块试图移出屏幕时反弹，允许从屏幕外滑入
+      if (currentBlock.x < 0 && currentBlock.direction < 0) {
         currentBlock.x = 0;
         currentBlock.direction = 1;
-      } else if (currentBlock.x + currentBlock.width >= canvasWidth) {
+      } else if (currentBlock.x + currentBlock.width > canvasWidth && currentBlock.direction > 0) {
         currentBlock.x = canvasWidth - currentBlock.width;
         currentBlock.direction = -1;
       }
