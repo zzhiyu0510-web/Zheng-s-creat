@@ -373,8 +373,8 @@
     // 交替方向：方块从屏幕远端滑过来，留足反应时间
     spawnDirection *= -1;
     const dir = spawnDirection;
-    // 起点在屏幕外侧，从屏幕外滑入
-    const startX = dir === 1 ? -600 : canvasWidth + 600;
+    // 起点在屏幕外侧 800px，从远处滑入
+    const startX = dir === 1 ? -800 : canvasWidth + 800;
     currentBlock = {
       x: startX,
       width: blockWidth,
