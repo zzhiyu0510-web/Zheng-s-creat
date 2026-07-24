@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>堆叠大师</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    position: fixed;
+    top: 0; left: 0;
+    background: #0a0a1a;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  canvas {
+    display: block;
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+  }
+
+  /* 覆盖层通用样式 */
+  .overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    transition: opacity 0.4s ease, visibility 0.4s ease;
+  }
+
+  .overlay.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  /* 开始界面 */
+  #startScreen {
+    background: radial-gradient(ellipse at center, rgba(20,20,60,0.92) 0%, rgba(5,5,20,0.96) 100%);
+  }
+
+  .game-title {
+    font-size: clamp(40px, 10vw, 64px);
+    font-weight: 900;
+    letter-spacing: 0.05em;
+    background: linear-gradient(180deg, #ff6b6b 0%, #ffd93d 30%, #6bcb77 60%, #4d96ff 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 8px;
+    text-shadow: none;
+    filter: drop-shadow(0 2px 8px rgba(255,255,255,0.15));
+  }
+
+  .game-subtitle {
+    font-size: clamp(14px, 3.5vw, 18px);
+    color: rgba(255,255,255,0.5);
+    letter-spacing: 0.15em;
+    margin-bottom: 48px;
+  }
+
+  .btn {
+    padding: 16px 56px;
+    font-size: clamp(18px, 4.5vw, 22px);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    color: #fff;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .btn:active {
+    transform: scale(0.95);
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    box-shadow: 0 8px 32px rgba(102, 126, 234, 0.4);
+  }
+
+  .btn-primary:active {
+    box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
+  }
+
+  .btn-restart {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    box-shadow: 0 8px 32px rgba(245, 87, 108, 0.4);
+  }
+
+  /* 游戏结束界面 */
+  #gameOverScreen {
+    background: rgba(5,5,20,0.9);
+  }
+
+  .gameover-title {
+    font-size: clamp(32px, 8vw, 48px);
+    font-weight: 900;
+    color: #ff6b6b;
+    margin-bottom: 32px;
+    letter-spacing: 0.05em;
+  }
+
+  .score-display {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+
+  .score-label {
+    font-size: 14px;
+    color: rgba(255,255,255,0.5);
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
+  }
+
+  .score-value {
+    font-size: clamp(48px, 12vw, 72px);
+    font-weight: 900;
+    color: #fff;
+  }
+
+  .highscore-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  .highscore-icon { font-size: 18px; }
+  .highscore-text {
+    font-size: 16px;
+    color: rgba(255,255,255,0.6);
+  }
+
+  .new-record {
+    color: #ffd93d;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    animation: pulse 0.8s ease-in-out infinite alternate;
+  }
+
+  @keyframes pulse {
+    from { opacity: 0.7; transform: scale(1); }
+    to   { opacity: 1;   transform: scale(1.05); }
+  }
+
+  /* HUD（游戏进行中顶部信息） */
+  #hud {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    z-index: 5;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: max(16px, env(safe-area-inset-top)) 20px 0 20px;
+    pointer-events: none;
+  }
+
+  #hud.hidden {
+    opacity: 0;
+    visibility: hidden;
+  }
+
+  .hud-score {
+    text-align: center;
+  }
+
+  .hud-level {
+    font-size: 12px;
+    color: rgba(255,255,255,0.4);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+
+  .hud-points {
+    font-size: clamp(28px, 7vw, 38px);
+    font-weight: 900;
+    color: #fff;
+    line-height: 1.1;
+    text-shadow: 0 2px 12px rgba(0,0,0,0.5);
+  }
+</style>
+</head>
+<body>
+
+<canvas id="gameCanvas"></canvas>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div class="hud-score">
+    <div class="hud-level">层数</div>
+    <div class="hud-points" id="hudScore">0</div>
+  </div>
+</div>
+
+<!-- 开始界面 -->
+<div class="overlay" id="startScreen">
+  <div class="game-title">堆叠大师</div>
+  <div class="game-subtitle">STACK MASTER</div>
+  <button class="btn btn-primary" id="btnStart">开始游戏</button>
+</div>
+
+<!-- 游戏结束界面 -->
+<div class="overlay hidden" id="gameOverScreen">
+  <div class="gameover-title">游戏结束</div>
+  <div class="score-display">
+    <div class="score-label">最终得分</div>
+    <div class="score-value" id="finalScore">0</div>
+    <div class="highscore-row">
+      <span class="highscore-icon">🏆</span>
+      <span class="highscore-text">最高纪录：<strong id="highScoreText">0</strong></span>
+    </div>
+    <div class="new-record hidden" id="newRecord">🎉 新纪录！</div>
+  </div>
+  <button class="btn btn-restart" id="btnRestart">重新开始</button>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // ==================== DOM 引用 ====================
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const startScreen = document.getElementById('startScreen');
+  const gameOverScreen = document.getElementById('gameOverScreen');
+  const finalScoreEl = document.getElementById('finalScore');
+  const highScoreTextEl = document.getElementById('highScoreText');
+  const newRecordEl = document.getElementById('newRecord');
+  const hudEl = document.getElementById('hud');
+  const hudScoreEl = document.getElementById('hudScore');
+
+  // ==================== 配置 ====================
+  const BLOCK_HEIGHT = 36;
+  const DEPTH_3D = 12;
+  const INITIAL_WIDTH_RATIO = 0.72;
+  const MIN_WIDTH_RATIO = 0.10;
+  const BASE_SPEED = 260;
+  const SPEED_INCREMENT = 12;
+  const SPEED_MAX = 900;
+  const PERFECT_THRESHOLD = 0.97;
+  const GREAT_THRESHOLD = 0.80;
+  const BOUNCE_DURATION = 280;
+  const PARTICLE_DURATION = 700;
+  const FLOAT_TEXT_DURATION = 900;
+  const MOVE_GAP = 8; // 移动方块与堆叠顶部间距
+
+  // ==================== 状态 ====================
+  let canvasWidth, canvasHeight, dpr;
+  let initialBlockWidth;
+  let stack = [];
+  let currentBlock = null;
+  let cameraY = 0;
+  let targetCameraY = 0;
+  let score = 0;
+  let highScore = 0;
+  let gameState = 'start'; // 'start' | 'playing' | 'gameover'
+  let particles = [];
+  let floatingTexts = [];
+  let lastTime = 0;
+  let isNewRecord = false;
+  let canPlace = true; // 防止快速连点
+
+  // ==================== 工具函数 ====================
+  function hsl(h, s, l, a) {
+    return a !== undefined
+      ? `hsla(${h},${s}%,${l}%,${a})`
+      : `hsl(${h},${s}%,${l}%)`;
+  }
+
+  function getBlockColor(index) {
+    // 色相从红(0)渐变到蓝(240)
+    const hue = Math.min(index * 9, 240);
+    const saturation = 72;
+    const lightness = 54;
+    return {
+      hue, saturation, lightness,
+      front:  hsl(hue, saturation, lightness),
+      top:    hsl(hue, saturation, lightness + 22),
+      right:  hsl(hue, saturation, lightness - 22),
+      border: hsl(hue, saturation, lightness - 10),
+      highlight: hsl(hue, saturation, lightness + 35),
+    };
+  }
+
+  function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+
+  function dampedSin(t) {
+    // 阻尼正弦：先负后正再归零，模拟弹跳
+    return Math.exp(-6 * t) * Math.sin(t * Math.PI * 3.5);
+  }
+
+  function rectsOverlap(a, b) {
+    const left = Math.max(a.x, b.x);
+    const right = Math.min(a.x + a.width, b.x + b.width);
+    return { x: left, width: Math.max(0, right - left) };
+  }
+
+  // ==================== 画布尺寸 ====================
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvasWidth = window.innerWidth;
+    canvasHeight = window.innerHeight;
+    canvas.width = canvasWidth * dpr;
+    canvas.height = canvasHeight * dpr;
+    canvas.style.width = canvasWidth + 'px';
+    canvas.style.height = canvasHeight + 'px';
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.scale(dpr, dpr);
+    initialBlockWidth = Math.round(canvasWidth * INITIAL_WIDTH_RATIO);
+    // 确保初始宽度合理
+    initialBlockWidth = Math.max(120, Math.min(initialBlockWidth, 340));
+  }
+
+  // ==================== 粒子系统 ====================
+  function spawnParticles(x, y, width, height, color, direction) {
+    const count = Math.max(3, Math.floor(width / 8));
+    for (let i = 0; i < count; i++) {
+      const px = x + Math.random() * width;
+      const py = y + Math.random() * height;
+      const size = 3 + Math.random() * 6;
+      particles.push({
+        x: px, y: py,
+        vx: direction * (80 + Math.random() * 200),
+        vy: -(100 + Math.random() * 180),
+        w: size + Math.random() * width * 0.25,
+        h: 3 + Math.random() * 5,
+        rotation: (Math.random() - 0.5) * Math.PI * 2,
+        rotSpeed: (Math.random() - 0.5) * 12,
+        life: PARTICLE_DURATION,
+        maxLife: PARTICLE_DURATION,
+        color: color,
+      });
+    }
+  }
+
+  function spawnFloatingText(x, y, text, color) {
+    floatingTexts.push({
+      x, y,
+      text, color,
+      life: FLOAT_TEXT_DURATION,
+      maxLife: FLOAT_TEXT_DURATION,
+      vy: -80,
+    });
+  }
+
+  // ==================== 方块管理 ====================
+  function spawnMovingBlock() {
+    const color = getBlockColor(stack.length);
+    const dir = Math.random() < 0.5 ? 1 : -1;
+    // 初始位置：随机放在一侧
+    const startX = dir === 1 ? -initialBlockWidth * 0.3 : canvasWidth - initialBlockWidth * 0.7;
+    currentBlock = {
+      x: Math.max(0, Math.min(canvasWidth - initialBlockWidth, startX)),
+      width: initialBlockWidth,
+      color: color,
+      direction: dir,
+      speed: Math.min(BASE_SPEED + stack.length * SPEED_INCREMENT, SPEED_MAX),
+      worldY: stack.length * BLOCK_HEIGHT, // 当前所在层级（世界坐标）
+    };
+  }
+
+  function placeBlock() {
+    if (!currentBlock || gameState !== 'playing' || !canPlace) return;
+
+    canPlace = false;
+    setTimeout(function() { canPlace = true; }, 150);
+
+    const lastBlock = stack[stack.length - 1];
+    const overlap = rectsOverlap(currentBlock, lastBlock);
+    const overlapRatio = overlap.width / currentBlock.width;
+
+    // 完全错开 → 游戏结束
+    if (overlap.width <= 0) {
+      spawnParticles(
+        currentBlock.x,
+        canvasHeight - (currentBlock.worldY) + cameraY - BLOCK_HEIGHT,
+        currentBlock.width, BLOCK_HEIGHT,
+        currentBlock.color.front, 0
+      );
+      endGame();
+      return;
+    }
+
+    // 判断等级
+    let grade = null;
+    if (overlapRatio >= PERFECT_THRESHOLD) {
+      grade = 'perfect';
+      score += 3; // 基础1 + 额外2
+      overlap.width = currentBlock.width; // 完美对齐保留完整宽度
+      overlap.x = currentBlock.x;
+    } else {
+      score += 1;
+      if (overlapRatio >= GREAT_THRESHOLD) {
+        grade = 'great';
+      }
+    }
+
+    // 当前方块屏幕Y坐标
+    const screenY = canvasHeight - currentBlock.worldY + cameraY - BLOCK_HEIGHT;
+
+    // 创建被切割后的方块
+    const placedBlock = {
+      x: overlap.x,
+      width: overlap.width,
+      worldY: currentBlock.worldY,
+      color: currentBlock.color,
+      bounceStart: performance.now(),
+    };
+    stack.push(placedBlock);
+
+    // 碎片粒子
+    // 左侧多余部分
+    const leftOverhang = overlap.x - currentBlock.x;
+    if (leftOverhang > 2) {
+      spawnParticles(
+        currentBlock.x, screenY,
+        leftOverhang, BLOCK_HEIGHT,
+        currentBlock.color.front, -1
+      );
+    }
+    // 右侧多余部分
+    const rightOverhang = (currentBlock.x + currentBlock.width) - (overlap.x + overlap.width);
+    if (rightOverhang > 2) {
+      spawnParticles(
+        overlap.x + overlap.width, screenY,
+        rightOverhang, BLOCK_HEIGHT,
+        currentBlock.color.front, 1
+      );
+    }
+
+    // 浮动文字
+    const textX = overlap.x + overlap.width / 2;
+    const textY = screenY - 10;
+    if (grade === 'perfect') {
+      spawnFloatingText(textX, textY, 'Perfect!', '#ffd93d');
+    } else if (grade === 'great') {
+      spawnFloatingText(textX, textY, 'Great!', '#6bcb77');
+    }
+
+    // 更新分数显示
+    hudScoreEl.textContent = score;
+
+    // 检查方块是否太窄
+    if (overlap.width < initialBlockWidth * MIN_WIDTH_RATIO) {
+      // 不生成新方块，延迟结束让玩家看到结果
+      currentBlock = null;
+      setTimeout(function() { endGame(); }, 400);
+    } else {
+      // 生成下一个方块
+      spawnMovingBlock();
+    }
+  }
+
+  // ==================== 游戏流程 ====================
+  function startGame() {
+    score = 0;
+    stack = [];
+    particles = [];
+    floatingTexts = [];
+    cameraY = 0;
+    targetCameraY = 0;
+    isNewRecord = false;
+    canPlace = true;
+
+    // 创建底座方块（居中）
+    const baseColor = getBlockColor(0);
+    const baseX = (canvasWidth - initialBlockWidth) / 2;
+    stack.push({
+      x: baseX,
+      width: initialBlockWidth,
+      worldY: 0,
+      color: baseColor,
+      bounceStart: 0,
+    });
+
+    spawnMovingBlock();
+    hudScoreEl.textContent = '0';
+    gameState = 'playing';
+
+    startScreen.classList.add('hidden');
+    gameOverScreen.classList.add('hidden');
+    hudEl.classList.remove('hidden');
+  }
+
+  function endGame() {
+    gameState = 'gameover';
+    currentBlock = null;
+
+    // 更新最高分
+    if (score > highScore) {
+      highScore = score;
+      isNewRecord = true;
+      try { localStorage.setItem('stackMasterHighScore', highScore); } catch (e) {}
+    } else {
+      isNewRecord = false;
+    }
+
+    finalScoreEl.textContent = score;
+    highScoreTextEl.textContent = highScore;
+    if (isNewRecord) {
+      newRecordEl.classList.remove('hidden');
+    } else {
+      newRecordEl.classList.add('hidden');
+    }
+
+    hudEl.classList.add('hidden');
+    gameOverScreen.classList.remove('hidden');
+  }
+
+  // ==================== 更新 ====================
+  function update(dt) {
+    if (gameState !== 'playing') return;
+
+    const now = performance.now();
+
+    // 更新移动方块
+    if (currentBlock) {
+      currentBlock.x += currentBlock.direction * currentBlock.speed * dt;
+      // 边界反弹
+      if (currentBlock.x <= 0) {
+        currentBlock.x = 0;
+        currentBlock.direction = 1;
+      } else if (currentBlock.x + currentBlock.width >= canvasWidth) {
+        currentBlock.x = canvasWidth - currentBlock.width;
+        currentBlock.direction = -1;
+      }
+    }
+
+    // 更新相机
+    const stackTop = stack.length * BLOCK_HEIGHT;
+    targetCameraY = Math.max(0, stackTop + BLOCK_HEIGHT - canvasHeight * 0.68);
+    cameraY += (targetCameraY - cameraY) * Math.min(dt * 8, 1);
+
+    // 更新粒子
+    const dtSec = dt;
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.life -= dtSec * 1000;
+      if (p.life <= 0) {
+        particles.splice(i, 1);
+        continue;
+      }
+      p.x += p.vx * dtSec;
+      p.y += p.vy * dtSec;
+      p.vy += 600 * dtSec; // 重力
+      p.rotation += p.rotSpeed * dtSec;
+    }
+
+    // 更新浮动文字
+    for (let i = floatingTexts.length - 1; i >= 0; i--) {
+      const ft = floatingTexts[i];
+      ft.life -= dtSec * 1000;
+      if (ft.life <= 0) {
+        floatingTexts.splice(i, 1);
+        continue;
+      }
+      ft.y += ft.vy * dtSec;
+    }
+  }
+
+  // ==================== 渲染 ====================
+  function drawBlock3D(x, y, w, h, color, bounceOffset) {
+    const d = DEPTH_3D;
+    const by = bounceOffset || 0;
+
+    // 右面（暗）
+    ctx.fillStyle = color.right;
+    ctx.beginPath();
+    ctx.moveTo(x + w, y + by);
+    ctx.lineTo(x + w + d, y - d + by);
+    ctx.lineTo(x + w + d, y + h - d + by);
+    ctx.lineTo(x + w, y + h + by);
+    ctx.closePath();
+    ctx.fill();
+
+    // 右面边缘线
+    ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+
+    // 前面（主色）
+    const frontGrad = ctx.createLinearGradient(x, y + by, x, y + h + by);
+    frontGrad.addColorStop(0, color.top);
+    frontGrad.addColorStop(0.08, color.highlight);
+    frontGrad.addColorStop(0.15, color.front);
+    frontGrad.addColorStop(0.85, color.front);
+    frontGrad.addColorStop(1, color.border);
+    ctx.fillStyle = frontGrad;
+    ctx.fillRect(x, y + by, w, h);
+
+    // 前面顶部高光线
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(x, y + by + 1);
+    ctx.lineTo(x + w, y + by + 1);
+    ctx.stroke();
+
+    // 前面边框
+    ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+    ctx.lineWidth = 0.8;
+    ctx.strokeRect(x, y + by, w, h);
+
+    // 顶面（亮）
+    ctx.fillStyle = color.top;
+    ctx.beginPath();
+    ctx.moveTo(x, y + by);
+    ctx.lineTo(x + d, y - d + by);
+    ctx.lineTo(x + w + d, y - d + by);
+    ctx.lineTo(x + w, y + by);
+    ctx.closePath();
+    ctx.fill();
+
+    // 顶面高光
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, y + by);
+    ctx.lineTo(x + d, y - d + by);
+    ctx.lineTo(x + w + d, y - d + by);
+    ctx.lineTo(x + w, y + by);
+    ctx.closePath();
+    ctx.stroke();
+  }
+
+  function render(now) {
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+    // 背景渐变
+    const bgGrad = ctx.createLinearGradient(0, 0, 0, canvasHeight);
+    bgGrad.addColorStop(0, '#0d0d2b');
+    bgGrad.addColorStop(0.5, '#1a1040');
+    bgGrad.addColorStop(1, '#0a0a1f');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+    // 背景装饰网格
+    ctx.strokeStyle = 'rgba(255,255,255,0.015)';
+    ctx.lineWidth = 0.5;
+    const gridSize = 50;
+    for (let gx = gridSize; gx < canvasWidth; gx += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(gx, 0);
+      ctx.lineTo(gx, canvasHeight);
+      ctx.stroke();
+    }
+    for (let gy = gridSize; gy < canvasHeight; gy += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(0, gy);
+      ctx.lineTo(canvasWidth, gy);
+      ctx.stroke();
+    }
+
+    // 保存上下文用于裁剪（超出屏幕上方的不绘制）
+    ctx.save();
+
+    // 渲染已放置的方块堆叠
+    for (let i = 0; i < stack.length; i++) {
+      const block = stack[i];
+      const screenY = canvasHeight - block.worldY + cameraY - BLOCK_HEIGHT;
+
+      // 屏幕外裁剪优化
+      if (screenY + BLOCK_HEIGHT + DEPTH_3D < -20) continue;
+      if (screenY - DEPTH_3D > canvasHeight + 20) continue;
+
+      // 弹跳动画
+      let bounceOffset = 0;
+      if (block.bounceStart > 0 && i === stack.length - 1) {
+        const elapsed = now - block.bounceStart;
+        if (elapsed < BOUNCE_DURATION) {
+          bounceOffset = dampedSin(elapsed / BOUNCE_DURATION) * BLOCK_HEIGHT * 0.35;
+        } else {
+          block.bounceStart = 0; // 动画结束，重置标记
+        }
+      }
+
+      drawBlock3D(block.x, screenY, block.width, BLOCK_HEIGHT, block.color, bounceOffset);
+    }
+
+    // 渲染当前移动方块
+    if (currentBlock && gameState === 'playing') {
+      const screenY = canvasHeight - currentBlock.worldY + cameraY - BLOCK_HEIGHT - MOVE_GAP;
+      // 移动方块微微悬浮
+      const floatY = screenY - 4;
+
+      // 移动方块阴影
+      ctx.fillStyle = 'rgba(0,0,0,0.2)';
+      ctx.fillRect(
+        currentBlock.x + 2,
+        floatY + BLOCK_HEIGHT + 2,
+        currentBlock.width,
+        3
+      );
+
+      drawBlock3D(currentBlock.x, floatY, currentBlock.width, BLOCK_HEIGHT, currentBlock.color, 0);
+
+      // 移动方块发光效果
+      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(currentBlock.x - 1, floatY - 1, currentBlock.width + 2, BLOCK_HEIGHT + 2);
+    }
+
+    ctx.restore();
+
+    // 渲染粒子
+    for (const p of particles) {
+      const alpha = Math.max(0, p.life / p.maxLife);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(p.x + p.w / 2, p.y + p.h / 2);
+      ctx.rotate(p.rotation);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      // 粒子高光
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, 1.5);
+      ctx.restore();
+    }
+
+    // 渲染浮动文字
+    for (const ft of floatingTexts) {
+      const alpha = Math.max(0, ft.life / ft.maxLife);
+      const progress = 1 - ft.life / ft.maxLife;
+      const scale = 1 + progress * 0.3;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(ft.x, ft.y);
+      ctx.scale(scale, scale);
+      ctx.font = 'bold 22px -apple-system, "PingFang SC", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      // 文字阴影
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillText(ft.text, 1, 1);
+      // 文字主体
+      ctx.fillStyle = ft.color;
+      ctx.fillText(ft.text, 0, 0);
+      ctx.restore();
+    }
+
+    // 底部基准线
+    const baseScreenY = canvasHeight - 0 + cameraY;
+    if (baseScreenY < canvasHeight + 5 && baseScreenY > -5) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([8, 16]);
+      ctx.beginPath();
+      ctx.moveTo(0, baseScreenY);
+      ctx.lineTo(canvasWidth, baseScreenY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  // ==================== 游戏主循环 ====================
+  function gameLoop(timestamp) {
+    if (lastTime === 0) lastTime = timestamp;
+    let dt = (timestamp - lastTime) / 1000;
+    if (dt <= 0) dt = 0.016;
+    if (dt > 0.1) dt = 0.1; // 防止大帧跳跃
+    lastTime = timestamp;
+
+    update(dt);
+    render(timestamp);
+
+    requestAnimationFrame(gameLoop);
+  }
+
+  // ==================== 输入处理 ====================
+  function handleInput(e) {
+    if (gameState === 'playing') {
+      e.preventDefault();
+      placeBlock();
+    }
+  }
+
+  canvas.addEventListener('mousedown', function(e) {
+    if (gameState === 'playing') {
+      e.preventDefault();
+      placeBlock();
+    }
+  });
+
+  canvas.addEventListener('touchstart', function(e) {
+    if (gameState === 'playing') {
+      e.preventDefault();
+      placeBlock();
+    }
+  }, { passive: false });
+
+  // 阻止移动端的双击缩放和长按菜单
+  document.addEventListener('touchstart', function(e) {
+    if (e.target === canvas && gameState === 'playing') {
+      e.preventDefault();
+    }
+  }, { passive: false });
+
+  document.addEventListener('dblclick', function(e) {
+    if (e.target === canvas) {
+      e.preventDefault();
+    }
+  });
+
+  // ==================== 按钮事件 ====================
+  document.getElementById('btnStart').addEventListener('click', startGame);
+  document.getElementById('btnStart').addEventListener('touchend', function(e) {
+    e.preventDefault();
+    startGame();
+  });
+
+  document.getElementById('btnRestart').addEventListener('click', startGame);
+  document.getElementById('btnRestart').addEventListener('touchend', function(e) {
+    e.preventDefault();
+    startGame();
+  });
+
+  // 键盘空格也能操作（调试用）
+  document.addEventListener('keydown', function(e) {
+    if (e.code === 'Space' && gameState === 'playing') {
+      e.preventDefault();
+      placeBlock();
+    }
+  });
+
+  // ==================== 初始化 ====================
+  function init() {
+    resize();
+    try {
+      highScore = parseInt(localStorage.getItem('stackMasterHighScore')) || 0;
+    } catch (e) {
+      highScore = 0;
+    }
+    highScoreTextEl.textContent = highScore;
+    lastTime = performance.now();
+    requestAnimationFrame(gameLoop);
+  }
+
+  window.addEventListener('resize', resize);
+  window.addEventListener('orientationchange', function() {
+    setTimeout(resize, 200);
+  });
+
+  init();
+})();
+</script>
+</body>
+</html>
