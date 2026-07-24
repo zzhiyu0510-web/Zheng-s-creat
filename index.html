@@ -364,17 +364,22 @@
 
   // ==================== 方块管理 ====================
   function spawnMovingBlock() {
+    const lastBlock = stack[stack.length - 1];
+    // 新方块宽度 = 栈顶方块宽度（越切越窄，难度递增）
+    const blockWidth = lastBlock.width;
     const color = getBlockColor(stack.length);
     const dir = Math.random() < 0.5 ? 1 : -1;
-    // 初始位置：随机放在一侧
-    const startX = dir === 1 ? -initialBlockWidth * 0.3 : canvasWidth - initialBlockWidth * 0.7;
+    // 初始位置：在上一块附近随机偏移
+    const startX = dir === 1
+      ? Math.max(0, lastBlock.x - blockWidth * 0.5)
+      : Math.min(canvasWidth - blockWidth, lastBlock.x + blockWidth * 0.5);
     currentBlock = {
-      x: Math.max(0, Math.min(canvasWidth - initialBlockWidth, startX)),
-      width: initialBlockWidth,
+      x: Math.max(0, Math.min(canvasWidth - blockWidth, startX)),
+      width: blockWidth,
       color: color,
       direction: dir,
       speed: Math.min(BASE_SPEED + stack.length * SPEED_INCREMENT, SPEED_MAX),
-      worldY: stack.length * BLOCK_HEIGHT, // 当前所在层级（世界坐标）
+      worldY: stack.length * BLOCK_HEIGHT,
     };
   }
 
@@ -401,11 +406,14 @@
     }
 
     // 判断等级
+    // 新方块宽度 = 上一块宽度，所以完美对齐时重叠 = 当前宽度
     let grade = null;
-    if (overlapRatio >= PERFECT_THRESHOLD) {
+    const isPerfect = overlapRatio >= PERFECT_THRESHOLD;
+    if (isPerfect) {
       grade = 'perfect';
       score += 3; // 基础1 + 额外2
-      overlap.width = currentBlock.width; // 完美对齐保留完整宽度
+      // 完美对齐：方块不切割，保持当前宽度继续
+      overlap.width = currentBlock.width;
       overlap.x = currentBlock.x;
     } else {
       score += 1;
