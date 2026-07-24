@@ -1,0 +1,40 @@
+name: Enable GitHub Pages
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# 需要 Pages 写入权限
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  enable-pages:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enable GitHub Pages via API
+        run: |
+          response=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/${{ github.repository }}/pages \
+            -d '{"source":{"branch":"main","path":"/"}}')
+
+          http_code=$(echo "$response" | tail -1)
+          body=$(echo "$response" | sed '$d')
+
+          echo "HTTP Status: $http_code"
+          echo "Response: $body"
+
+          if [ "$http_code" = "201" ] || [ "$http_code" = "204" ]; then
+            echo "✅ GitHub Pages 已成功开启！"
+            echo "🔗 链接: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
+          elif [ "$http_code" = "409" ]; then
+            echo "⚠️  GitHub Pages 已经开启过了"
+            echo "🔗 链接: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
+          else
+            echo "❌ 请求失败，HTTP: $http_code"
+          fi
