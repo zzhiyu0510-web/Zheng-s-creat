@@ -363,16 +363,18 @@
   }
 
   // ==================== 方块管理 ====================
+  let spawnDirection = 1; // 交替方向：1=向右，-1=向左
+
   function spawnMovingBlock() {
     const lastBlock = stack[stack.length - 1];
     // 新方块宽度 = 栈顶方块宽度（越切越窄，难度递增）
     const blockWidth = lastBlock.width;
     const color = getBlockColor(stack.length);
-    const dir = Math.random() < 0.5 ? 1 : -1;
-    // 初始位置：在上一块附近随机偏移
-    const startX = dir === 1
-      ? Math.max(0, lastBlock.x - blockWidth * 0.5)
-      : Math.min(canvasWidth - blockWidth, lastBlock.x + blockWidth * 0.5);
+    // 交替方向：每轮切换，方块从上一块位置出发
+    spawnDirection *= -1;
+    const dir = spawnDirection;
+    // 初始位置：在上一块的x位置
+    const startX = lastBlock.x;
     currentBlock = {
       x: Math.max(0, Math.min(canvasWidth - blockWidth, startX)),
       width: blockWidth,
