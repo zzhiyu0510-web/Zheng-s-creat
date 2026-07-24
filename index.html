@@ -364,6 +364,7 @@
 
   // ==================== 方块管理 ====================
   let spawnDirection = 1; // 交替方向：1=向右，-1=向左
+  const PAUSE_DURATION = 600; // 新方块在原位停留时间（毫秒）
 
   function spawnMovingBlock() {
     const lastBlock = stack[stack.length - 1];
@@ -375,6 +376,7 @@
     const dir = spawnDirection;
     // 初始位置：在上一块的x位置
     const startX = lastBlock.x;
+    const now = performance.now();
     currentBlock = {
       x: Math.max(0, Math.min(canvasWidth - blockWidth, startX)),
       width: blockWidth,
@@ -382,6 +384,7 @@
       direction: dir,
       speed: Math.min(BASE_SPEED + stack.length * SPEED_INCREMENT, SPEED_MAX),
       worldY: stack.length * BLOCK_HEIGHT,
+      pauseUntil: now + PAUSE_DURATION, // 停留一段时间再开始移动
     };
   }
 
@@ -544,14 +547,20 @@
 
     // 更新移动方块
     if (currentBlock) {
-      currentBlock.x += currentBlock.direction * currentBlock.speed * dt;
-      // 边界反弹
-      if (currentBlock.x <= 0) {
-        currentBlock.x = 0;
-        currentBlock.direction = 1;
-      } else if (currentBlock.x + currentBlock.width >= canvasWidth) {
-        currentBlock.x = canvasWidth - currentBlock.width;
-        currentBlock.direction = -1;
+      // 新方块先停留一段时间再开始移动，给玩家反应时间
+      if (currentBlock.pauseUntil && now < currentBlock.pauseUntil) {
+        // 停留中，不移动
+      } else {
+        currentBlock.pauseUntil = 0; // 停留结束
+        currentBlock.x += currentBlock.direction * currentBlock.speed * dt;
+        // 边界反弹
+        if (currentBlock.x <= 0) {
+          currentBlock.x = 0;
+          currentBlock.direction = 1;
+        } else if (currentBlock.x + currentBlock.width >= canvasWidth) {
+          currentBlock.x = canvasWidth - currentBlock.width;
+          currentBlock.direction = -1;
+        }
       }
     }
 
@@ -711,6 +720,8 @@
       const screenY = canvasHeight - currentBlock.worldY + cameraY - BLOCK_HEIGHT - MOVE_GAP;
       // 移动方块微微悬浮
       const floatY = screenY - 4;
+      const isPaused = currentBlock.pauseUntil && now < currentBlock.pauseUntil;
+      const pauseRemain = isPaused ? (currentBlock.pauseUntil - now) / PAUSE_DURATION : 0;
 
       // 移动方块阴影
       ctx.fillStyle = 'rgba(0,0,0,0.2)';
@@ -723,10 +734,40 @@
 
       drawBlock3D(currentBlock.x, floatY, currentBlock.width, BLOCK_HEIGHT, currentBlock.color, 0);
 
-      // 移动方块发光效果
-      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(currentBlock.x - 1, floatY - 1, currentBlock.width + 2, BLOCK_HEIGHT + 2);
+      if (isPaused) {
+        // 停留阶段：脉冲光晕，提示玩家可以点击
+        const pulse = Math.sin(now * 0.008) * 0.4 + 0.6;
+        ctx.strokeStyle = `rgba(255,255,255,${0.15 + pulse * 0.35})`;
+        ctx.lineWidth = 3;
+        ctx.strokeRect(currentBlock.x - 2, floatY - 2, currentBlock.width + 4, BLOCK_HEIGHT + 4);
+
+        // 倒计时圆点
+        const dotsTotal = 5;
+        const dotsActive = Math.ceil(pauseRemain * dotsTotal);
+        const dotR = 4;
+        const dotY = floatY - 16;
+        const dotStartX = currentBlock.x + currentBlock.width / 2 - (dotsTotal * dotR * 2.5) / 2;
+        for (let d = 0; d < dotsTotal; d++) {
+          const dx = dotStartX + d * dotR * 2.5;
+          ctx.beginPath();
+          ctx.arc(dx, dotY, dotR, 0, Math.PI * 2);
+          ctx.fillStyle = d < dotsActive
+            ? `rgba(255,255,255,${0.9 - d * 0.15})`
+            : 'rgba(255,255,255,0.15)';
+          ctx.fill();
+        }
+
+        // 提示文字
+        ctx.fillStyle = `rgba(255,255,255,${0.6 + pulse * 0.4})`;
+        ctx.font = 'bold 13px -apple-system, "PingFang SC", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('准备点击!', currentBlock.x + currentBlock.width / 2, dotY - 16);
+      } else {
+        // 移动阶段：普通发光
+        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(currentBlock.x - 1, floatY - 1, currentBlock.width + 2, BLOCK_HEIGHT + 2);
+      }
     }
 
     ctx.restore();
